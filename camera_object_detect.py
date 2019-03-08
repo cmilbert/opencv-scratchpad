@@ -1,5 +1,9 @@
 import cv2
+import time
 from base_camera import BaseCamera
+from picamera.array import PiRGBArray
+from picamera import PiCamera
+
 
 class Camera(BaseCamera):
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -31,25 +35,47 @@ class Camera(BaseCamera):
                 return value
 
     def frames():
+        faceCascade = cv2.CascadeClassifier("models/haarcascade_frontalface_default.xml")
         model = cv2.dnn.readNetFromTensorflow('models/frozen_inference_graph.pb', 'models/ssd_mobilenet_v2_coco_2018_03_29.pbtxt')
-        cap = cv2.VideoCapture(0)
+        camera = PiCamera()
+        camera.resolution = (1280, 720)
+        camera.framerate = 2
+        camera.vflip = True
+        camera.hflip = True
+        camera.meter_mode = "matrix"
+        camera.awb_mode = "auto"
+        #camera.exposure_mode = "night"
+        camera.image_denoise = True
+        rawCapture = PiRGBArray(camera, size=(1280, 720))
+        time.sleep(0.1)
+        #cap = cv2.VideoCapture(0)
         #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+        #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         #cap.set(cv2.CAP_PROP_FPS, 1)
 
-        while True:
-            ret, image = cap.read()
+        #while True:
+        for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+            image = frame.array
+            #image = cv2.cvtColor(frame.array, cv2.COLOR_BGR2GRAY)
+            #image_gray = image
+            image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            #ret, image = cap.read()
             #image = cv2.imread("image.jpeg")
             image_height, image_width, _ = image.shape
-            print("image_height: {} \t image_width: {}".format(image_height, image_width))
+            
+            faces = faceCascade.detectMultiScale(image_gray, scaleFactor=1.1, minNeighbors=10, minSize=(30, 30))
+
             model.setInput(cv2.dnn.blobFromImage(image, size=(300, 300), swapRB=True))
             output = model.forward()
-            print(output[0,0,:,:].shape)
+
+            for (x, y, w, h) in faces:
+                cv2.rectangle(image, (x, y), (x+w, y+h), (0, 255, 0), 2)
+
             for detection in output[0, 0, :, :]:
                 confidence = detection[2]
-                if confidence > .5:
+                if confidence > .4:
                     class_id = detection[1]
                     class_name=Camera.id_class_name(class_id)
                     print(str(str(class_id) + " " + str(detection[2])  + " " + class_name))
@@ -59,5 +85,6 @@ class Camera(BaseCamera):
                     box_height = detection[6] * image_height
                     cv2.rectangle(image, (int(box_x), int(box_y)), (int(box_width), int(box_height)), (23, 230, 210), thickness=1)
                 #cv2.putText(image, class_name, (int(box_x), int(box_y+.05*image_height)), cv2.FONT_HERSHEY_SIMPLEX, (.005*image_width),(0, 0, 255))
-                    cv2.putText(image, class_name, (int(box_x), int(box_y+.05*image_height)), Camera.font, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
+                    cv2.putText(image, class_name + " " + str(confidence), (int(box_x), int(box_y+.05*image_height)), Camera.font, 0.7, (0, 0, 255), 1, cv2.LINE_AA)
+            rawCapture.truncate(0)
             yield cv2.imencode('.jpg', image)[1].tobytes()
