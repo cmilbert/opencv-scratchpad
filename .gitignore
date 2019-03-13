@@ -1,2 +1,4 @@
 __pycache__
 *.pyc
+edgetpu
+models/edge-tpu
