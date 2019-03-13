@@ -45,13 +45,18 @@
   </div>
   <script type="text/javascript">
     function getObjectJson() {
+      console.log("getting json");
       $.getJSON("/ai/objects.json", function(result){
+        $("ul[name=objects]").empty();
         $.each(result, function(key, value){
           $("ul[name=objects]").append('<li class="list-group-item">' + parseFloat(value * 100).toFixed(4) + "%" + ' - ' + key + '</li>');
         });
       });
-    }
-   setTimeout(getObjectJson(), 1000);
+    };
+    $(document).ready(function() {
+      $.ajaxSetup({ cache: false });
+      setInterval(getObjectJson, 1000);
+    });
   </script>
 </body>
 </html>
